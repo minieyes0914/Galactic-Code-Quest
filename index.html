@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星際程式大冒險</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- 引入 Babel 用於解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        /* 自定義捲軸樣式 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin-slow 10s linear infinite;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 防止行動裝置下拉重整 */
+        body {
+            overscroll-behavior: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen w-screen overflow-hidden font-sans flex flex-col">
+    <div id="root" class="h-full w-full flex flex-col"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Icons ---
+        const Icons = {
+            Play: ({size=24, className="", fill="none"}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>,
+            RotateCcw: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>,
+            Volume2: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>,
+            Move: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="19 9 22 12 19 15"></polyline><polyline points="9 19 12 22 15 19"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>,
+            MousePointer: ({size=24, className="", fill="none"}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path><path d="m13 13 6 6"></path></svg>,
+            MessageCircle: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>,
+            Layers: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>,
+            ImageIcon: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>,
+            MapPin: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>,
+            Star: ({size=24, className="", fill="none"}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>,
+            Trophy: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17"></path><path d="M14 14.66V17"></path><path d="M12 2v20"></path><path d="M8.21 13.89L7 23"></path><path d="M15.79 13.89L17 23"></path></svg>,
+            AlertCircle: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>,
+            ArrowRight: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>,
+            Lightbulb: ({size=24, className="", fill="none"}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.4 1.5-3.8 0-3.2-2.8-5.7-6-5.7s-6 2.5-6 5.7c0 1.4.5 2.8 1.5 3.8.8.8 1.3 1.5 1.5 2.5"></path><path d="M9 18h6"></path><path d="M10 22h4"></path></svg>,
+            Calculator: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg>,
+            Keyboard: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2" ry="2"></rect><path d="M6 8h.001"></path><path d="M10 8h.001"></path><path d="M14 8h.001"></path><path d="M18 8h.001"></path><path d="M6 12h.001"></path><path d="M10 12h.001"></path><path d="M14 12h.001"></path><path d="M18 12h.001"></path><path d="M7 16h10"></path></svg>,
+            BookOpen: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>,
+            CornerDownRight: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 10 20 15 15 20"></polyline><path d="M4 4v7a4 4 0 0 0 4 4h12"></path></svg>,
+            User: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>,
+            RotateCw: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg>,
+            Flag: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" x2="4" y1="22" y2="15"></line></svg>
+        };
+
+        const LEVELS = [
+            {
+                id: 1,
+                title: "第一關：引擎啟動",
+                description: "喵隊長的太空船失去動力了！我們需要重新啟動系統。請你幫忙讓程式開始運作，並讓喵隊長向大家報告「系統啟動！」",
+                hint: "找找看黃色的積木，那是程式的起點！通常是「當綠旗被點擊」。",
+                explanation: "程式都需要一個啟動的信號。我們使用「當綠旗被點擊」作為開始，接著放入「說出...」積木，這樣程式一執行就會馬上說話囉！",
+                concept: ["事件(Event)", "基本腳本"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'move10', text: '移動 10 點', type: 'motion' },
+                { id: 'say_start', text: '說出「系統啟動!」持續2秒', type: 'looks' },
+                // Distractors
+                { id: 'wait_1', text: '等待 1 秒', type: 'control' },
+                { id: 'turn15', text: '右轉 15 度', type: 'motion' }
+                ],
+                solution: ['flag', 'say_start']
+            },
+            {
+                id: 2,
+                title: "第二關：歸零校正",
+                description: "導航系統錯亂！太空船迷路了。請幫忙把太空船拉回到星際地圖的正中心位置 (0, 0)，這樣才能準備進行跳躍。",
+                hint: "舞台的正中央座標是 X=0, Y=0。試著用藍色的積木直接定位過去。",
+                explanation: "在 Scratch 的舞台座標中，中心點就是 x:0, y:0。使用「定位到 x:0 y:0」積木，就能不管角色在哪裡，精準地把它送回畫面正中央。",
+                concept: ["座標(X,Y)", "定位"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'goto_random', text: '定位到 隨機位置', type: 'motion' },
+                { id: 'goto_0_0', text: '定位到 x:0 y:0', type: 'motion' },
+                { id: 'change_x', text: 'x 改變 10', type: 'motion' },
+                // Distractors
+                { id: 'change_y', text: 'y 改變 10', type: 'motion' },
+                { id: 'say_pos', text: '說出「位置確認」', type: 'looks' }
+                ],
+                solution: ['flag', 'goto_0_0']
+            },
+            {
+                id: 3,
+                title: "第三關：自動導航",
+                description: "啟動自動駕駛模式！請設定導航系統，讓太空船能夠持續不斷地跟隨你的滑鼠游標飛行，避開障礙物。",
+                hint: "要讓飛船「一直」做動作，你需要用橘色的「重複無限次」積木把動作包起來。",
+                explanation: "要讓飛船「一直」運作，必須使用「重複無限次」迴圈。在迴圈裡放入「面朝鼠標」和「移動」，飛船就會不斷地轉向滑鼠並前進，看起來就像在跟隨你！",
+                concept: ["迴圈(Loop)", "跟隨游標"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'forever', text: '重複無限次', type: 'control' },
+                { id: 'point_mouse', text: '面朝 鼠標 向', type: 'motion' },
+                { id: 'move_steps', text: '移動 5 點', type: 'motion' },
+                { id: 'wait_1', text: '等待 1 秒', type: 'control' },
+                // Distractors
+                { id: 'bounce', text: '碰到邊緣就反彈', type: 'motion' },
+                { id: 'turn_15', text: '右轉 15 度', type: 'motion' }
+                ],
+                solution: ['flag', 'forever', 'point_mouse', 'move_steps']
+            },
+            {
+                id: 4,
+                title: "第四關：外星訊號",
+                description: "偵測到外星訊號！如果在旅途中不小心碰到外星人，請先說出「你好」，再發送訊號並切換到外星基地場景。",
+                hint: "先檢查是否「碰到外星人」(偵測)，如果碰到了，記得先「說出你好」，然後才發出「廣播」並「切換背景」。",
+                explanation: "這是標準的「偵測」邏輯。我們把「如果...那麼」放在無限迴圈裡，電腦就會隨時檢查是否「碰到外星人」。一旦碰到，就會依序執行：說你好 -> 廣播 -> 換背景。",
+                concept: ["偵測(Sensing)", "廣播", "條件判斷"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'forever', text: '重複無限次', type: 'control' },
+                { id: 'if_touching', text: '如果 <碰到 外星人 ?> 那麼', type: 'control' },
+                { id: 'say_hello', text: '說出「你好」持續2秒', type: 'looks' },
+                { id: 'broadcast', text: '廣播訊息「你好」', type: 'event' },
+                { id: 'switch_bg', text: '背景換成「外星基地」', type: 'looks' },
+                // Distractors
+                { id: 'wait_1', text: '等待 1 秒', type: 'control' },
+                { id: 'turn_15', text: '右轉 15 度', type: 'motion' }
+                ],
+                solution: ['flag', 'forever', 'if_touching', 'say_hello', 'broadcast', 'switch_bg']
+            },
+            {
+                id: 5,
+                title: "第五關：能量收集",
+                description: "發現能量水晶！我們需要收集它們。每當太空船碰到水晶時，會發出「叮」的音效，並且能量指數會+1。",
+                hint: "這是「變數」的應用。當偵測到水晶時，使用橘紅色的變數積木讓數值增加，別忘了還要加上音效喔！",
+                explanation: "變數就像一個計分板。當我們偵測到碰到水晶時，同時執行「播放音效」和「變數改變 1」，這樣就能有聲光效果的得分回饋了！",
+                concept: ["變數(Variable)", "計分機制"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'forever', text: '重複無限次', type: 'control' },
+                { id: 'if_touching_gem', text: '如果 <碰到 水晶 ?> 那麼', type: 'control' },
+                { id: 'change_score', text: '變數 [能量] 改變 1', type: 'variable' },
+                { id: 'play_sound', text: '播放音效「叮」', type: 'sound' },
+                { id: 'set_score', text: '變數 [能量] 設為 0', type: 'variable' },
+                // Distractors
+                { id: 'hide', text: '隱藏', type: 'looks' }
+                ],
+                solution: ['flag', 'forever', 'if_touching_gem', 'play_sound', 'change_score']
+            },
+            {
+                id: 6,
+                title: "第六關：邊界警報",
+                description: "不能飛出星系邊緣！太空船目前定位在(200,0)，已經碰到邊緣了!並發出「哎呀!」的警告聲!請趕快幫忙設定保護機制，讓太空船在碰到邊緣時，會自動反彈回來，不會有警告聲。",
+                hint: "先「定位」到右邊邊緣，然後發出「音效」。接著在無限迴圈裡讓它移動，並加上「碰到邊緣就反彈」。",
+                explanation: "這是一個連續動作：初始化（定位、音效） -> 迴圈（移動、反彈）。把「碰到邊緣就反彈」放在移動後面，就能確保角色永遠在畫面裡面！",
+                concept: ["動作", "邊界偵測"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'goto_edge', text: '定位到 x:200 y:0', type: 'motion' },
+                { id: 'play_ouch', text: '播放音效「哎呀!」直到結束', type: 'sound' },
+                { id: 'forever', text: '重複無限次', type: 'control' },
+                { id: 'move_10', text: '移動 10 點', type: 'motion' },
+                { id: 'bounce', text: '碰到邊緣就反彈', type: 'motion' },
+                // Distractors
+                { id: 'set_x_0', text: 'x 設為 0', type: 'motion' },
+                { id: 'say_ouch', text: '說出「哎呀!」', type: 'looks' }
+                ],
+                solution: ['flag', 'goto_edge', 'play_ouch', 'forever', 'move_10', 'bounce']
+            },
+            {
+                id: 7,
+                title: "第七關：雙核心運作",
+                description: "我們需要同時啟動兩個系統！請讓引擎系統一直保持移動狀態，同時雷達系統也要一直播放音效，兩者互不干擾。",
+                hint: "想想看，如果要讓兩件事「同時」發生，我們是不是需要兩個「頭」（綠旗）來分別指揮呢？",
+                explanation: "這就是「平行處理」的概念！就像我們能一邊走路一邊唱歌一樣。在 Scratch 裡，我們可以寫好幾個「當綠旗被點擊」的腳本，它們會同時一起執行。",
+                concept: ["平行處理", "多腳本"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'forever', text: '重複無限次', type: 'control' },
+                { id: 'move_10', text: '移動 10 點', type: 'motion' },
+                { id: 'play_radar', text: '播放音效「雷達」直到結束', type: 'sound' },
+                // Distractors
+                { id: 'wait_1', text: '等待 1 秒', type: 'control' },
+                { id: 'turn_15', text: '右轉 15 度', type: 'motion' }
+                ],
+                solution: ['flag', 'forever', 'move_10', 'flag', 'forever', 'play_radar']
+            },
+            {
+                id: 8,
+                title: "第八關：安全降落",
+                description: "準備降落在星球表面。為了安全，我們不能直接撞上去，請控制太空船花 2 秒鐘的時間，慢慢降落到指定座標 (x:0, y:-100)，並等待一秒後通知太空站已成功。",
+                hint: "「定位到」是瞬間移動，「滑行」則有移動過程。為了確保通訊順暢，說話前可以先「等待」一下喔！",
+                explanation: "「滑行」積木可以創造平滑的移動效果。為了模擬真實情況，我們在降落後加入「等待」再回報成功，讓流程更自然。",
+                concept: ["滑行(Glide)", "座標移動", "等待"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'glide', text: '在 2 秒內滑行到 x:0 y:-100', type: 'motion' },
+                { id: 'wait_1', text: '等待 1 秒', type: 'control' },
+                { id: 'say_success', text: '說出「降落成功」', type: 'looks' },
+                // Distractors
+                { id: 'goto', text: '定位到 x:0 y:-100', type: 'motion' },
+                { id: 'change_y', text: 'y 改變 -10', type: 'motion' }
+                ],
+                solution: ['flag', 'glide', 'wait_1', 'say_success']
+            },
+            {
+                id: 9,
+                title: "第九關：自動停煞",
+                description: "太空船正在自動返航。但引擎出問題了，座標一直定位到隨機位置，無法調整，請趕快加上安全機制，一旦碰到基地，就要立刻停止所有運作，以免發生問題。",
+                hint: "需要一個能不斷執行的迴圈，在裡面移動並隨時檢查「如果」碰到基地，「那麼」就執行停止指令。",
+                explanation: "「如果...那麼...」是程式中最重要的判斷工具！把它放在迴圈裡，程式就會不斷檢查條件。一旦條件成立（碰到基地），執行「停止全部」，飛船就會乖乖停下來。",
+                concept: ["條件判斷(If...Then)", "停止程式"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'forever', text: '重複無限次', type: 'control' },
+                { id: 'goto_random', text: '定位到 隨機位置', type: 'motion' },
+                { id: 'if_touching_base', text: '如果 <碰到 基地 ?> 那麼', type: 'control' },
+                { id: 'stop_all', text: '停止 [全部]', type: 'control' },
+                // Distractors
+                { id: 'move_10', text: '移動 10 點', type: 'motion' },
+                { id: 'repeat_until', text: '重複直到 <...>', type: 'control' }
+                ],
+                solution: ['flag', 'forever', 'goto_random', 'if_touching_base', 'stop_all']
+            },
+            {
+                id: 10,
+                title: "第十關：盛大遊行",
+                description: "任務圓滿完成！我們要舉辦一場盛大的遊行。喵隊長為了慶祝，不僅在現場有播放慶祝音樂，喵隊長也變換很多種造型遊行，並在最後一個造型結束後，吸了一口氣大聲說出YA!",
+                hint: "動作和音樂要分開進行！造型變換可以設定「重複 10 次」，每次變換後都要「等待」一下，結束後才能接續說話。",
+                explanation: "為了讓「說出YA!」發生在動作結束後，我們使用「重複10次」而不是無限次，並加入「等待」控制節奏。同時，為了不讓音樂中斷，我們把音樂放在另一個獨立的無限迴圈腳本中。",
+                concept: ["綜合應用", "平行處理", "有限迴圈"],
+                initialScore: 10,
+                availableBlocks: [
+                { id: 'flag', text: '當 ⚑ 被點擊', type: 'event' },
+                { id: 'forever', text: '重複無限次', type: 'control' },
+                { id: 'repeat_10', text: '重複 10 次', type: 'control' },
+                { id: 'next_costume', text: '造型換成 下一個', type: 'looks' },
+                { id: 'play_music', text: '播放音效「慶典」直到結束', type: 'sound' },
+                { id: 'wait_05', text: '等待 0.5 秒', type: 'control' },
+                { id: 'say_ya', text: '說出「YA!」持續2秒', type: 'looks' },
+                // Distractors
+                { id: 'turn_15', text: '右轉 15 度', type: 'motion' }
+                ],
+                solution: ['flag', 'forever', 'play_music', 'flag', 'repeat_10', 'next_costume', 'wait_05', 'say_ya']
+            }
+        ];
+
+        // --- HELPER FUNCTIONS ---
+        const isContainerBlock = (blockId) => {
+            return ['forever', 'if_touching', 'if_touching_gem', 'if_touching_base', 'repeat_until', 'repeat_10'].includes(blockId);
+        };
+
+        const isHatBlock = (blockId) => {
+            return ['flag', 'key_space'].includes(blockId);
+        };
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        // --- COMPONENTS ---
+        const Block = ({ block, onClick, isSelected, indentLevel = 0, isContainer = false }) => {
+            const getColors = (type) => {
+                switch (type) {
+                case 'event': return 'bg-yellow-400 border-yellow-600 text-yellow-900';
+                case 'motion': return 'bg-blue-500 border-blue-700 text-white';
+                case 'control': return 'bg-orange-400 border-orange-600 text-white';
+                case 'looks': return 'bg-purple-500 border-purple-700 text-white';
+                case 'sound': return 'bg-pink-400 border-pink-600 text-white';
+                case 'sensing': return 'bg-cyan-400 border-cyan-600 text-white';
+                case 'variable': return 'bg-orange-500 border-orange-700 text-white';
+                case 'operator': return 'bg-green-500 border-green-700 text-white';
+                default: return 'bg-gray-400';
+                }
+            };
+
+            const baseClasses = `
+                ${getColors(block.type)} 
+                px-3 py-2 rounded-md cursor-pointer shadow-sm border-l-4 font-medium text-sm select-none transition-transform active:scale-95
+                ${isSelected ? 'opacity-50' : 'hover:brightness-110'}
+                flex items-center gap-2 relative z-10
+            `;
+
+            const containerClasses = isContainer ? 'rounded-b-none mb-0' : 'mb-2';
+            
+            // Dynamic Icon Component
+            let IconComponent = Icons.Square; // Default
+            if (block.type === 'event') IconComponent = Icons.Play;
+            if (block.type === 'motion') IconComponent = Icons.Move;
+            if (block.type === 'control') IconComponent = Icons.RotateCcw;
+            if (block.type === 'looks') IconComponent = Icons.ImageIcon;
+            if (block.type === 'sound') IconComponent = Icons.Volume2;
+            if (block.type === 'sensing') IconComponent = Icons.MousePointer;
+            if (block.type === 'variable') IconComponent = Icons.Calculator;
+            if (block.type === 'operator') IconComponent = Icons.Calculator;
+
+            return (
+                <div className="relative">
+                <div onClick={onClick} className={`${baseClasses} ${containerClasses}`}>
+                    <IconComponent size={14} />
+                    {block.text}
+                    {isContainer && <Icons.CornerDownRight size={16} className="ml-auto opacity-50" />}
+                </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+        function ScratchAdventureApp() {
+            const [currentLevelIdx, setCurrentLevelIdx] = useState(0);
+            const [scriptArea, setScriptArea] = useState([]);
+            const [score, setScore] = useState(0);
+            const [totalScore, setTotalScore] = useState(0);
+            const [gameState, setGameState] = useState('intro'); // intro, playing, success, fail, complete
+            const [feedback, setFeedback] = useState("");
+            const [showAnimation, setShowAnimation] = useState(false);
+            const [showHint, setShowHint] = useState(false); 
+            const [attempts, setAttempts] = useState(0);
+            const [isLevelFailed, setIsLevelFailed] = useState(false);
+            const [shuffledBlocks, setShuffledBlocks] = useState([]);
+            const [costumeFrame, setCostumeFrame] = useState(0);
+            const [playerName, setPlayerName] = useState(""); 
+            
+            // Animation states
+            const [autoMousePos, setAutoMousePos] = useState({ x: 50, y: 50 });
+            const [rocketRotation, setRocketRotation] = useState(0);
+
+            const currentLevel = LEVELS[currentLevelIdx];
+
+            useEffect(() => {
+                if (currentLevel) {
+                    setShuffledBlocks(shuffleArray(currentLevel.availableBlocks));
+                }
+            }, [currentLevelIdx]);
+
+            // Animation loops
+            useEffect(() => {
+                if (currentLevel.id === 10 && showAnimation) {
+                    const interval = setInterval(() => {
+                        setCostumeFrame(prev => prev + 1);
+                    }, 500); 
+                    return () => clearInterval(interval);
+                }
+                
+                if (currentLevel.id === 3 && showAnimation) {
+                    let angle = 0;
+                    const interval = setInterval(() => {
+                        angle += 0.05;
+                        const x = 50 + 35 * Math.cos(angle);
+                        const y = 50 + 35 * Math.sin(angle);
+                        const rotation = (angle * 180 / Math.PI) + 90 + 45; 
+                        setAutoMousePos({ x, y });
+                        setRocketRotation(rotation);
+                    }, 20);
+                    return () => clearInterval(interval);
+                }
+            }, [currentLevel.id, showAnimation]);
+
+            const addToScript = (block) => {
+                if (gameState !== 'playing') return;
+                setScriptArea([...scriptArea, block]);
+            };
+
+            const removeFromScript = (index) => {
+                if (gameState !== 'playing') return;
+                const newScript = [...scriptArea];
+                newScript.splice(index, 1);
+                setScriptArea(newScript);
+            };
+
+            const clearScript = () => {
+                if (gameState === 'success') return;
+                setScriptArea([]);
+            };
+
+            const checkAnswer = () => {
+                const userIds = scriptArea.map(b => b.id);
+                const solutionIds = currentLevel.solution;
+                const hasDistractors = userIds.some(id => !solutionIds.includes(id));
+                
+                // Count check
+                const solutionCounts = solutionIds.reduce((acc, id) => { acc[id] = (acc[id] || 0) + 1; return acc; }, {});
+                const userCounts = userIds.reduce((acc, id) => { acc[id] = (acc[id] || 0) + 1; return acc; }, {});
+
+                let isCorrect = true;
+                for (const id of solutionIds) {
+                    if ((userCounts[id] || 0) < solutionCounts[id]) {
+                        isCorrect = false;
+                        break;
+                    }
+                }
+                
+                // Check if distractors are present (only allow blocks that are in the solution)
+                // Note: This logic implies ANY block not in the solution is a distractor.
+                // If a block is correct but used too many times, it's allowed here unless strict count is needed.
+                const uniqueSolutionIds = new Set(solutionIds);
+                for (const id of userIds) {
+                    if (!uniqueSolutionIds.has(id)) {
+                        isCorrect = false;
+                        break;
+                    }
+                }
+
+                if (isCorrect) {
+                    setGameState('success');
+                    setShowAnimation(true);
+                    
+                    if (!isLevelFailed) {
+                        setFeedback("程式執行成功！邏輯正確！(獲得 10 分)");
+                        setTotalScore(prev => prev + 10);
+                    } else {
+                        setFeedback("程式執行成功。 (因已公佈答案，本關不予加分)");
+                    }
+                } else {
+                    const newAttempts = attempts + 1;
+                    setAttempts(newAttempts);
+
+                    if (newAttempts >= 3) {
+                        setIsLevelFailed(true);
+                        setFeedback("已嘗試錯誤 3 次。為您公佈正確答案（本關無法獲得 10 分）。");
+                        // Auto-fill solution logic needs to find block objects
+                        const solutionBlocks = currentLevel.solution.map(id => 
+                            currentLevel.availableBlocks.find(b => b.id === id)
+                        ).filter(Boolean);
+                        setScriptArea(solutionBlocks);
+                        setGameState('success');
+                        setShowAnimation(true);
+                    } else {
+                        setFeedback(`程式有誤！請再檢查。(剩餘嘗試機會：${3 - newAttempts})`);
+                        setTotalScore(prev => Math.max(0, prev - 2));
+                    }
+                }
+            };
+
+            const nextLevel = () => {
+                if (currentLevelIdx < LEVELS.length - 1) {
+                    setCurrentLevelIdx(prev => prev + 1);
+                    setScriptArea([]);
+                    setGameState('playing');
+                    setFeedback("");
+                    setShowAnimation(false);
+                    setShowHint(false);
+                    setAttempts(0);
+                    setIsLevelFailed(false);
+                } else {
+                    setGameState('complete');
+                }
+            };
+
+            const startGame = () => {
+                setGameState('playing');
+                setCurrentLevelIdx(0);
+                setTotalScore(0);
+                setScriptArea([]);
+                setFeedback("");
+                setShowHint(false);
+                setAttempts(0);
+                setIsLevelFailed(false);
+            };
+
+            const getRenderedScript = () => {
+                let currentIndent = 0;
+                return scriptArea.map((block) => {
+                    if (isHatBlock(block.id)) {
+                        currentIndent = 0;
+                    }
+                    const isContainer = isContainerBlock(block.id);
+                    const renderData = {
+                        ...block,
+                        indentLevel: currentIndent,
+                        isContainer
+                    };
+                    if (isContainer) {
+                        currentIndent += 1;
+                    }
+                    return renderData;
+                });
+            };
+
+            const renderedScript = getRenderedScript();
+
+            // --- Render Stage ---
+            const renderGameStage = () => {
+                return (
+                <div className={`w-full h-full bg-gray-900 relative overflow-hidden flex items-center justify-center border-4 border-gray-700 transition-all duration-1000 ${showAnimation ? 'border-green-400' : ''}`}>
+                    {/* Backgrounds */}
+                    {currentLevel.id === 4 && showAnimation && (
+                    <div className="absolute inset-0 bg-indigo-900 transition-colors duration-1000 z-0">
+                        <div className="absolute bottom-0 w-full h-1/2 flex justify-around items-end pb-2 opacity-60">
+                            <div className="text-4xl animate-bounce" style={{animationDelay: '0.1s'}}>👾</div>
+                            <div className="text-3xl animate-bounce" style={{animationDelay: '0.3s'}}>👽</div>
+                            <div className="text-5xl animate-bounce" style={{animationDelay: '0.5s'}}>👾</div>
+                            <div className="text-2xl animate-bounce" style={{animationDelay: '0.2s'}}>👽</div>
+                            <div className="text-4xl animate-bounce" style={{animationDelay: '0.4s'}}>👾</div>
+                        </div>
+                        <div className="absolute top-4 right-10 text-6xl opacity-30 animate-pulse">🛸</div>
+                        <div className="absolute top-10 left-10 text-4xl opacity-20">🪐</div>
+                    </div>
+                    )}
+                    
+                    <div className="absolute inset-0 opacity-30 pointer-events-none">
+                     {[...Array(20)].map((_, i) => (
+                        <div key={i} className="absolute bg-white rounded-full" 
+                            style={{
+                                width: Math.random() * 3 + 'px', 
+                                height: Math.random() * 3 + 'px',
+                                top: Math.random() * 100 + '%',
+                                left: Math.random() * 100 + '%'
+                            }} 
+                        />
+                     ))}
+                    </div>
+
+                    {/* Level 8 Planet */}
+                    {currentLevel.id === 8 && (
+                    <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-[150%] h-48 bg-gradient-to-b from-orange-600 to-orange-800 rounded-t-[100%] border-t-8 border-orange-400 z-0 shadow-2xl overflow-hidden">
+                        <div className="absolute top-8 left-[20%] w-16 h-6 bg-orange-900/20 rounded-full rotate-[-10deg]"></div>
+                        <div className="absolute top-12 right-[25%] w-24 h-8 bg-orange-900/20 rounded-full rotate-[5deg]"></div>
+                        <div className="absolute top-4 left-[60%] w-10 h-4 bg-orange-900/30 rounded-full"></div>
+                        <div className="absolute top-10 right-[10%] w-12 h-5 bg-orange-900/20 rounded-full"></div>
+                    </div>
+                    )}
+
+                    {/* Level 6 Warning Signs */}
+                    {currentLevel.id === 6 && !showAnimation && (
+                    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                        {[...Array(10)].map((_, i) => (
+                            <div key={i} className="absolute text-yellow-500 text-5xl animate-pulse opacity-80"
+                                style={{
+                                    top: `${Math.random() * 80 + 10}%`,
+                                    left: `${Math.random() * 80 + 10}%`,
+                                    transform: `rotate(${Math.random() * 45 - 22.5}deg)`
+                                }}>
+                            ⚠️
+                            </div>
+                        ))}
+                    </div>
+                    )}
+
+                    {/* Main Character / Rocket */}
+                    <div className={`relative z-10 flex flex-col items-center transition-all duration-700 ${showAnimation ? 'scale-110' : 'scale-100'}`}>
+                    
+                    {currentLevel.id === 1 && (
+                        <>
+                        <div className={`text-6xl mb-2 ${showAnimation ? 'animate-bounce' : ''}`}>😺</div>
+                        {showAnimation && <div className="bg-white text-black px-3 py-1 rounded-full text-xs font-bold animate-pulse">系統啟動！</div>}
+                        </>
+                    )}
+
+                    {currentLevel.id === 2 && (
+                        <div className={`text-6xl transition-all duration-1000 ${showAnimation ? 'translate-x-0 translate-y-0' : 'translate-x-20 translate-y-12'}`}>
+                        🚀
+                        <div className="absolute -top-8 left-0 text-xs text-green-400 font-mono">
+                            {showAnimation ? 'x:0 y:0' : 'x:120 y:80'}
+                        </div>
+                        </div>
+                    )}
+
+                    {currentLevel.id === 3 && (
+                        <div className="relative w-full h-full flex items-center justify-center">
+                            <div 
+                                className={`text-5xl absolute transition-all duration-75 ease-linear z-10`}
+                                style={showAnimation ? { 
+                                    left: `${autoMousePos.x}%`, 
+                                    top: `${autoMousePos.y}%`,
+                                    transform: `translate(-50%, -50%) rotate(${rocketRotation}deg)`
+                                } : {}}
+                            >
+                                {showAnimation ? '🚀' : '🚀'}
+                            </div>
+                            {showAnimation && (
+                                <div className="absolute z-20 transition-all duration-75 ease-linear pointer-events-none"
+                                    style={{ left: `${autoMousePos.x}%`, top: `${autoMousePos.y}%` }}
+                                >
+                                    <Icons.MousePointer fill="white" className="text-white drop-shadow-lg transform -rotate-12 translate-x-2 translate-y-2" size={24} />
+                                </div>
+                            )}
+                            {!showAnimation && <div className="text-5xl animate-pulse">🚀</div>}
+                        </div>
+                    )}
+
+                    {currentLevel.id === 4 && (
+                        <div className="flex gap-10 items-center relative">
+                            <div className={`text-6xl ${showAnimation ? 'translate-x-10' : ''}`}>🚀</div>
+                            {showAnimation && (
+                                <div className="absolute -top-12 left-0 bg-white text-black px-2 py-1 rounded-lg text-xs font-bold whitespace-nowrap animate-bounce">你好！</div>
+                            )}
+                            {!showAnimation && <div className="text-6xl text-green-400">👽</div>}
+                        </div>
+                    )}
+
+                    {currentLevel.id === 5 && (
+                        <div className="relative">
+                            <div className={`text-6xl ${showAnimation ? 'animate-pulse' : ''}`}>🚀</div>
+                            <div className="absolute -top-10 -right-10 text-4xl animate-ping opacity-50">💎</div>
+                            {showAnimation && (
+                                <div className="absolute -top-14 -right-16 flex flex-col gap-1 items-center">
+                                    <div className="text-yellow-300 font-bold text-lg animate-bounce">♪ 叮！</div>
+                                    <div className="bg-orange-500 text-white px-2 py-0.5 rounded-full font-bold shadow-lg text-xs">能量 +1</div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {currentLevel.id === 6 && (
+                        <div className="w-full h-full relative">
+                            {showAnimation && (
+                                <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center z-0">
+                                    <div className="text-green-300 font-bold text-6xl border-8 border-green-300 p-4 rounded-xl opacity-50 transform -rotate-12">SAFE</div>
+                                </div>
+                            )}
+                            <div className={`text-6xl absolute top-1/2 left-1/2 transition-all duration-1000 ${showAnimation ? '-translate-x-32 rotate-180' : 'translate-x-32'}`} style={{zIndex: 10}}>🚀</div>
+                            {showAnimation && <div className="absolute right-0 top-0 bottom-0 w-2 bg-red-500 animate-pulse"></div>}
+                            {!showAnimation && (
+                                <>
+                                <div className="absolute top-1/2 right-4 -translate-y-1/2 text-yellow-300 font-bold animate-ping text-xl">哎呀!</div>
+                                <div className="absolute top-1/2 left-1/2 transform translate-x-24 -translate-y-14 text-xs text-green-300 bg-black/80 px-2 py-1 rounded font-mono border border-green-500/50">x:200 y:0</div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {currentLevel.id === 7 && (
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="text-6xl relative">
+                                🚀
+                                {showAnimation && (
+                                <>
+                                    <div className="absolute top-1/2 left-full w-32 h-2 bg-blue-400 opacity-50 animate-pulse"></div>
+                                    <div className="absolute -top-10 left-0 text-yellow-400 animate-ping">📡</div>
+                                </>
+                                )}
+                            </div>
+                            {showAnimation && <div className="text-xs text-green-400">雙系統運作中...</div>}
+                        </div>
+                    )}
+
+                    {currentLevel.id === 8 && (
+                        <div className="relative w-full h-full flex flex-col items-center justify-end pb-8">
+                            <div className={`text-6xl absolute left-1/2 -translate-x-1/2 transition-all duration-[2000ms] ease-out ${showAnimation ? 'bottom-28' : 'bottom-[80%]'}`} style={{zIndex: 10}}>
+                                🚀
+                                {showAnimation && (
+                                    <div className="absolute -top-12 left-0 bg-white text-black px-2 py-1 rounded-lg text-xs font-bold whitespace-nowrap animate-bounce delay-1000">降落成功！</div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {currentLevel.id === 9 && (
+                        <div className="w-full h-full relative flex">
+                            <div className={`text-5xl absolute transition-all duration-2000 ease-linear ${showAnimation ? 'bottom-4 right-4' : 'top-4 left-4'}`} style={{zIndex: 10}}>
+                                🚀
+                            </div>
+                            <div className="text-5xl absolute bottom-4 right-4" style={{zIndex: 1}}>
+                                🏰
+                            </div>
+                            {showAnimation && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-red-400 font-bold bg-black/50 px-2 rounded">STOP ALL</div>}
+                        </div>
+                    )}
+
+                    {currentLevel.id === 10 && (
+                        <div className={`text-7xl ${showAnimation ? 'animate-bounce' : ''}`}>
+                            {showAnimation ? (costumeFrame % 2 === 0 ? '😺' : '😸') : '😺'}
+                            {showAnimation && <div className="text-yellow-400 text-2xl absolute -top-5 right-0">♫</div>}
+                            {showAnimation && <div className="absolute top-0 right-0 bg-white text-black text-xs font-bold px-1 rounded animate-bounce">YA!</div>}
+                        </div>
+                    )}
+
+                    </div>
+                </div>
+                );
+            };
+
+            // --- MAIN RENDER ---
+            if (gameState === 'intro') {
+                return (
+                <div className="min-h-screen bg-slate-800 text-white flex flex-col items-center justify-center h-full w-full font-sans overflow-y-auto">
+                    <div className="max-w-2xl text-center space-y-8 flex flex-col items-center mt-10">
+                    <h1 className="text-5xl font-bold text-yellow-400 mb-4 tracking-wider">星際程式大冒險</h1>
+                    <div className="text-8xl mb-6">🚀</div>
+                    <p className="text-xl text-slate-300 leading-relaxed">
+                        歡迎來到<b>星際程式指揮中心</b>！<br/>
+                        喵隊長的太空船壞掉了，請發揮你的<b>聰明才智</b>來修好它。<br/>
+                        這裡共有 10 個緊急修復關卡，請全力協助喵隊長闖關，<br/>
+                        <b>不然他就回不來台灣了！</b>
+                    </p>
+                    
+                    <div className="flex flex-col gap-4 items-center w-full max-w-md pb-10">
+                        <input
+                            type="text"
+                            placeholder="請輸入你的名字"
+                            value={playerName}
+                            onChange={(e) => setPlayerName(e.target.value)}
+                            className="w-full px-6 py-3 rounded-full text-slate-800 text-center text-lg focus:outline-none focus:ring-4 focus:ring-yellow-400"
+                        />
+                        <button 
+                            onClick={startGame}
+                            disabled={!playerName.trim()}
+                            className={`
+                                bg-green-500 text-white text-2xl font-bold py-4 px-12 rounded-full shadow-lg flex items-center gap-3
+                                ${!playerName.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-600 transform transition hover:scale-105 active:scale-95'}
+                            `}
+                        >
+                            <Icons.Play fill="currentColor" /> 開始闖關
+                        </button>
+                    </div>
+                    </div>
+                </div>
+                );
+            }
+
+            if (gameState === 'complete') {
+                const isSuccess = totalScore >= 60;
+                return (
+                <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center h-full w-full p-4 overflow-y-auto">
+                    <div className="text-center space-y-6 animate-fade-in-up max-w-2xl w-full">
+                    <div className="relative h-64 w-full bg-gray-800 rounded-2xl overflow-hidden border-4 border-gray-700 mb-6">
+                        {isSuccess ? (
+                        <svg viewBox="0 0 400 300" className="w-full h-full">
+                            <rect width="400" height="300" fill="#87CEEB" />
+                            <circle cx="350" cy="50" r="30" fill="#FFD700" className="animate-pulse" />
+                            <path d="M0 250 Q 200 200 400 250 V 300 H 0 Z" fill="#4CAF50" />
+                            <text x="180" y="240" fontSize="60">🚀</text>
+                            <text x="220" y="250" fontSize="50" className="animate-bounce">😺</text>
+                            <text x="100" y="230" fontSize="40" fontWeight="bold" fill="white" stroke="black" strokeWidth="1">台灣</text>
+                            <circle cx="50" cy="50" r="5" fill="red" className="animate-ping" style={{animationDuration:'1s'}}/>
+                            <circle cx="300" cy="100" r="5" fill="blue" className="animate-ping" style={{animationDuration:'1.5s'}}/>
+                        </svg>
+                        ) : (
+                        <svg viewBox="0 0 400 300" className="w-full h-full">
+                            <rect width="400" height="300" fill="#0F172A" />
+                            <circle cx="50" cy="50" r="2" fill="white" className="animate-pulse" />
+                            <circle cx="350" cy="150" r="2" fill="white" className="animate-pulse" style={{animationDelay:'0.5s'}}/>
+                            <circle cx="200" cy="250" r="2" fill="white" className="animate-pulse" style={{animationDelay:'1s'}}/>
+                            <g transform="translate(200, 150) rotate(45)">
+                                <text x="-30" y="10" fontSize="60" className="opacity-80">🚀</text>
+                            </g>
+                            <circle cx="200" cy="150" r="40" fill="rgba(255,255,255,0.1)" stroke="white" strokeWidth="2"/>
+                            <text x="182" y="165" fontSize="35">😿</text>
+                            <text x="200" y="250" fontSize="16" fill="white" textAnchor="middle" fontFamily="monospace">CONNECTION LOST...</text>
+                        </svg>
+                        )}
+                    </div>
+
+                    <h2 className="text-4xl font-bold">
+                        {isSuccess ? "任務圓滿完成！" : "任務失敗..."}
+                    </h2>
+                    
+                    <div className="bg-white/10 p-8 rounded-2xl backdrop-blur-sm border border-white/20">
+                        <div className="text-xl mb-2">
+                        闖關者：<span className="font-bold text-yellow-400">{playerName || "未具名"}</span>
+                        </div>
+                        <div className="text-gray-300 mb-4 text-sm">最終成績</div>
+                        <div className={`text-6xl font-bold ${isSuccess ? 'text-green-400' : 'text-red-400'}`}>
+                        {totalScore} / 100 分
+                        </div>
+                        <p className="mt-4 text-lg">
+                        {isSuccess 
+                            ? "太棒了！喵隊長成功修復太空船，平安返回台灣！🎉" 
+                            : "糟糕！分數不足，喵隊長只能永遠留在外太空中了... 😭"}
+                        </p>
+                    </div>
+
+                    <button 
+                        onClick={startGame}
+                        className="mt-8 text-blue-400 hover:text-blue-300 underline"
+                    >
+                        再玩一次
+                    </button>
+                    </div>
+                </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800 overflow-hidden">
+                {/* Header */}
+                <header className="bg-indigo-600 text-white p-3 shadow-md flex justify-between items-center sticky top-0 z-50 shrink-0">
+                    <div className="flex items-center gap-3">
+                    <div className="bg-white/20 p-2 rounded-lg"><Icons.Star fill="currentColor" className="text-yellow-300"/></div>
+                    <div>
+                        <h1 className="text-lg font-bold">星際程式大冒險</h1>
+                        <div className="text-xs opacity-80">Level {currentLevel.id}: {currentLevel.title}</div>
+                    </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                    <div className="flex flex-col items-end">
+                        {playerName && <span className="text-sm font-medium text-indigo-100 flex items-center gap-1"><Icons.User size={14}/> {playerName}</span>}
+                        <div className="flex items-baseline gap-1">
+                        <span className="text-xs opacity-75">分數</span>
+                        <span className="font-bold text-xl font-mono">{totalScore}</span>
+                        </div>
+                    </div>
+                    </div>
+                </header>
+
+                {/* 3-Column Layout: Left (25%), Center (42%), Right (33%) */}
+                <main className="flex-1 overflow-hidden p-2 grid grid-cols-12 gap-2 h-full">
+                    
+                    {/* Left Column: Task & Blocks (25%) */}
+                    <div className="col-span-3 flex flex-col gap-2 h-full overflow-hidden">
+                        
+                        {/* Task (Top) */}
+                        <div className="bg-white p-3 rounded-xl shadow-sm border-l-8 border-indigo-500 shrink-0 max-h-[35%] overflow-y-auto">
+                            <div className="flex justify-between items-start mb-2">
+                                <h2 className="text-sm font-bold text-indigo-700 flex items-center gap-1">
+                                    <Icons.AlertCircle size={16}/> 任務目標
+                                </h2>
+                                <button onClick={() => setShowHint(!showHint)} className="flex items-center gap-1 text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-200 transition">
+                                    <Icons.Lightbulb size={12} fill={showHint ? "currentColor" : "none"} />
+                                    {showHint ? "隱藏" : "提示"}
+                                </button>
+                            </div>
+                            <p className="text-slate-600 mb-2 text-xs leading-relaxed">{currentLevel.description}</p>
+                            {showHint && (
+                                <div className="mt-1 bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-200 animate-fade-in flex gap-1">
+                                    <span className="shrink-0">💡</span><span>{currentLevel.hint}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Blocks (Bottom) */}
+                        <div className="bg-slate-200 rounded-xl p-2 overflow-y-auto border border-slate-300 flex-1 min-h-0 flex flex-col">
+                            <h3 className="font-bold text-slate-600 mb-1 flex items-center gap-2 shrink-0 text-sm">
+                                <Icons.Layers size={14}/> 積木區
+                            </h3>
+                            <div className="space-y-1 flex-1 overflow-y-auto pr-1">
+                                {shuffledBlocks.map((block) => (
+                                    <Block key={block.id} block={block} onClick={() => addToScript(block)} isContainer={isContainerBlock(block.id)} />
+                                ))}
+                            </div>
+                            <div className="bg-yellow-100 text-yellow-800 text-[10px] p-1 rounded mt-1 border border-yellow-200 flex items-start gap-1 shrink-0">
+                                <Icons.AlertCircle size={10} className="shrink-0 mt-0.5" />
+                                <span>部分積木是干擾項喔！</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Center Column: Editor (42%) */}
+                    <div className="col-span-5 flex flex-col h-full overflow-hidden bg-white rounded-xl shadow-inner border-2 border-slate-200 relative">
+                        <div className="flex justify-between items-center p-2 border-b border-slate-100 shrink-0">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm">
+                                <Icons.ImageIcon size={16}/> 編輯區
+                            </h3>
+                            <button onClick={clearScript} className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 disabled:opacity-30 disabled:hover:text-red-500" disabled={gameState === 'success'}>
+                                <Icons.RotateCw size={12} className="inline mr-1"/>重新開始
+                            </button>
+                        </div>
+                        <div className="flex-1 p-2 overflow-y-auto bg-slate-50/50">
+                            {scriptArea.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                                    <Icons.Move size={32} className="mb-2 opacity-20" />
+                                    <p className="text-xs">點擊左側積木加入</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-0">
+                                    {renderedScript.map((block, index) => (
+                                        <div key={`${block.id}-${index}`} className="relative group">
+                                            {isHatBlock(block.id) && index > 0 && (
+                                                <div className="h-6 border-b-2 border-dashed border-slate-300 w-full mb-2 mt-4 relative">
+                                                    <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-slate-50 px-2 text-[10px] text-slate-400">新腳本</span>
+                                                </div>
+                                            )}
+                                            {block.indentLevel > 0 && (
+                                                <div className="absolute top-0 bottom-0 border-l-4 border-slate-300 opacity-30 z-0" style={{ left: `${(block.indentLevel * 16) - 10}px` }}></div>
+                                            )}
+                                            <div style={{ marginLeft: `${block.indentLevel * 16}px` }}>
+                                                <Block block={block} onClick={() => {}} isSelected={false} isContainer={block.isContainer} />
+                                            </div>
+                                            {gameState === 'playing' && (
+                                                <button onClick={() => removeFromScript(index)} className="absolute right-0 top-1 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 font-bold bg-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm z-20 border border-red-100 text-[10px]">×</button>
+                                            )}
+                                            {index < scriptArea.length - 1 && !block.isContainer && !isHatBlock(scriptArea[index+1].id) && (
+                                                <div className="h-2 w-4 bg-gray-300 ml-4 -mt-2 mb-0 rounded-b-sm" style={{ marginLeft: `${(block.indentLevel * 16) + 16}px` }}></div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Column: Stage & Info (33%) */}
+                    <div className="col-span-4 flex flex-col gap-2 h-full overflow-hidden">
+                        
+                        {/* Game Simulator (Top - 55%) */}
+                        <div className="bg-slate-800 rounded-xl shadow-lg border-4 border-slate-700 shrink-0 h-[55%] flex flex-col relative overflow-hidden">
+                            <div className="absolute top-2 left-2 z-20 bg-black/50 px-2 py-1 rounded text-[10px] text-white flex items-center gap-1">
+                                <Icons.Flag size={10} className="text-green-400"/> 舞台預覽
+                            </div>
+                            <div className="flex-1 relative min-h-0">
+                                {renderGameStage()}
+                            </div>
+                            <div className="bg-slate-700 p-2 flex justify-center shrink-0">
+                                <button 
+                                    onClick={checkAnswer}
+                                    disabled={scriptArea.length === 0 || gameState === 'success'}
+                                    className={`
+                                        w-full py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all
+                                        ${gameState === 'success' ? 'bg-green-500 text-white cursor-default' : 'bg-green-500 hover:bg-green-400 text-white shadow-md border-b-4 border-green-700 active:border-b-0 active:translate-y-1'}
+                                        disabled:opacity-50 disabled:cursor-not-allowed disabled:border-b-0 disabled:translate-y-0
+                                    `}
+                                >
+                                    <Icons.Play size={18} fill="currentColor" /> 
+                                    {gameState === 'success' ? '執行成功' : '執行 (綠旗)'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Info/Feedback Panel (Bottom - 45%) */}
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden relative">
+                             {/* Feedback Overlay - Always here to show result or placeholder */}
+                             <div className={`absolute inset-0 flex flex-col p-3 ${gameState === 'success' ? 'bg-green-50' : (feedback ? 'bg-red-50' : 'bg-white')}`}>
+                                 {feedback ? (
+                                    <>
+                                        <div className={`text-base font-bold mb-2 text-center shrink-0 ${gameState === 'success' ? 'text-green-600' : 'text-red-500'}`}>
+                                            {feedback}
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+                                            {gameState === 'success' && (
+                                                <div className="bg-white p-3 rounded-lg border border-green-200 text-left text-sm text-slate-600 shadow-sm mb-2">
+                                                    <div className="flex items-center gap-2 font-bold text-green-700 mb-1 border-b border-green-100 pb-1">
+                                                        <Icons.BookOpen size={14}/> 喵隊長講解
+                                                    </div>
+                                                    <div className="leading-relaxed text-xs">
+                                                        {currentLevel.explanation}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-2 flex justify-center shrink-0 pt-2 border-t border-black/5">
+                                            {gameState === 'success' ? (
+                                                <button onClick={nextLevel} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-2 transition-transform hover:scale-105 text-sm">
+                                                    {currentLevelIdx === LEVELS.length - 1 ? "查看分數" : "下一關"} 
+                                                    {currentLevelIdx === LEVELS.length - 1 ? <Icons.Trophy size={16} /> : <Icons.ArrowRight size={16} />}
+                                                </button>
+                                            ) : (
+                                                <button onClick={() => setFeedback("")} className="text-slate-400 text-xs hover:text-slate-600 underline">
+                                                    再試一次
+                                                </button>
+                                            )}
+                                        </div>
+                                    </>
+                                 ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-slate-300 p-4 text-center">
+                                        <Icons.MessageCircle size={24} className="mb-2 opacity-50"/>
+                                        <p className="text-xs">執行程式後<br/>喵隊長會在這裡告訴你結果喔！</p>
+                                    </div>
+                                 )}
+                             </div>
+                        </div>
+
+                    </div>
+
+                </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ScratchAdventureApp />);
+    </script>
+</body>
+</html>

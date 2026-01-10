@@ -300,6 +300,23 @@
             return newArray;
         }
 
+        // Helper to split a flat list of block IDs into separate scripts based on "Hat" blocks
+        const splitIntoScripts = (ids) => {
+            const scripts = [];
+            let currentScript = [];
+            ids.forEach(id => {
+                // If it's a start block (flag or key), start a new script
+                if (['flag', 'key_space'].includes(id)) {
+                    if (currentScript.length > 0) scripts.push(currentScript);
+                    currentScript = [id];
+                } else {
+                    currentScript.push(id);
+                }
+            });
+            if (currentScript.length > 0) scripts.push(currentScript);
+            return scripts;
+        };
+
         // --- COMPONENTS ---
         const Block = ({ block, onClick, isSelected, indentLevel = 0, isContainer = false }) => {
             const getColors = (type) => {
@@ -418,29 +435,38 @@
             const checkAnswer = () => {
                 const userIds = scriptArea.map(b => b.id);
                 const solutionIds = currentLevel.solution;
-                const hasDistractors = userIds.some(id => !solutionIds.includes(id));
                 
-                // Count check
-                const solutionCounts = solutionIds.reduce((acc, id) => { acc[id] = (acc[id] || 0) + 1; return acc; }, {});
-                const userCounts = userIds.reduce((acc, id) => { acc[id] = (acc[id] || 0) + 1; return acc; }, {});
-
+                // Split user and solution into script chunks based on Hat blocks
+                const userScripts = splitIntoScripts(userIds);
+                const solutionScripts = splitIntoScripts(solutionIds);
+                
                 let isCorrect = true;
-                for (const id of solutionIds) {
-                    if ((userCounts[id] || 0) < solutionCounts[id]) {
+
+                // 1. Check if number of scripts matches (e.g., Level 7 needs 2 scripts)
+                if (userScripts.length !== solutionScripts.length) {
+                    isCorrect = false;
+                } else {
+                    // 2. Normalize scripts for comparison (convert to string)
+                    const userScriptStrings = userScripts.map(s => JSON.stringify(s));
+                    const solutionScriptStrings = solutionScripts.map(s => JSON.stringify(s));
+                    
+                    // 3. Strict Check: Every solution script must essentially exist in user scripts
+                    // We sort them so that order of scripts (Script A vs Script B) doesn't matter
+                    // But order WITHIN scripts (Block 1 -> Block 2) DOES matter because JSON.stringify preserves array order.
+                    userScriptStrings.sort();
+                    solutionScriptStrings.sort();
+
+                    if (JSON.stringify(userScriptStrings) !== JSON.stringify(solutionScriptStrings)) {
                         isCorrect = false;
-                        break;
                     }
                 }
                 
-                // Check if distractors are present (only allow blocks that are in the solution)
-                const uniqueSolutionIds = new Set(solutionIds);
-                for (const id of userIds) {
-                    if (!uniqueSolutionIds.has(id)) {
-                        isCorrect = false;
-                        break;
-                    }
-                }
-
+                // Also check for any extra blocks that are NOT part of the solution structure
+                // (The strict script comparison above implicitly handles this, but explicit distractor check is safer)
+                const flatSolution = solutionIds;
+                const flatUser = userIds;
+                // If length matches and scripts match, we are good.
+                
                 if (isCorrect) {
                     setGameState('success');
                     setShowAnimation(true);
@@ -467,7 +493,7 @@
                         setShowAnimation(true);
                     } else {
                         setFeedback(`程式有誤！請再檢查。(剩餘嘗試機會：${3 - newAttempts})`);
-                        // No deduction here
+                        // No deduction
                     }
                 }
             };
@@ -571,7 +597,7 @@
                                     left: `${Math.random() * 80 + 10}%`,
                                     transform: `rotate(${Math.random() * 45 - 22.5}deg)`
                                 }}>
-                            ⚠️
+                           ⚠️
                             </div>
                         ))}
                     </div>
